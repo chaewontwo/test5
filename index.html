@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>제주 주요 지점 지도</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;600;700&family=DM+Mono:wght@400;500&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --sea:      #1a3a5c;
+      --seafoam:  #3e8fa3;
+      --sand:     #f0ebe1;
+      --lava:     #c0392b;
+      --moss:     #4a7c59;
+      --sky:      #e8f4f8;
+      --ink:      #1c2b3a;
+      --muted:    #7a8fa0;
+    }
+
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+      background: var(--sand);
+      color: var(--ink);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--sea);
+      color: white;
+      padding: 20px 32px 16px;
+      display: flex;
+      align-items: flex-end;
+      gap: 16px;
+    }
+    header .logo {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      line-height: 1;
+    }
+    header .logo span {
+      color: var(--seafoam);
+    }
+    header .subtitle {
+      font-size: 12px;
+      color: rgba(255,255,255,0.5);
+      font-weight: 300;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding-bottom: 2px;
+    }
+
+    /* ── Main layout ── */
+    main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    aside {
+      width: 300px;
+      min-width: 280px;
+      background: white;
+      border-right: 1px solid #d8e3ea;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 20px 20px 10px;
+    }
+
+    /* Location cards */
+    .loc-card {
+      padding: 14px 20px;
+      border-bottom: 1px solid #eef2f5;
+      cursor: pointer;
+      transition: background 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .loc-card:hover { background: var(--sky); }
+    .loc-card.active { background: #e3f0f5; }
+
+    .loc-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      border: 2px solid white;
+      box-shadow: 0 0 0 1.5px currentColor;
+    }
+    .loc-dot.airport { color: var(--lava); background: var(--lava); }
+    .loc-dot.school  { color: var(--moss); background: var(--moss); }
+    .loc-dot.univ    { color: var(--seafoam); background: var(--seafoam); }
+
+    .loc-info .name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+    .loc-info .addr {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* Distance table */
+    .dist-section {
+      flex: 1;
+      padding: 0 0 20px;
+    }
+
+    .dist-row {
+      padding: 13px 20px;
+      border-bottom: 1px solid #eef2f5;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .dist-pair {
+      flex: 1;
+      font-size: 12px;
+      color: var(--ink);
+      line-height: 1.6;
+    }
+    .dist-pair .from-to {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .dist-pair .from-to .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dist-pair .from-to .arrow { color: #c0d0dc; font-size: 10px; }
+
+    .dist-value {
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .dist-value .km {
+      font-family: 'DM Mono', monospace;
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--sea);
+    }
+    .dist-value .unit {
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    /* ── Map ── */
+    #map {
+      flex: 1;
+      z-index: 0;
+    }
+
+    /* Leaflet popup tweak */
+    .custom-popup .leaflet-popup-content-wrapper {
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      border: none;
+      padding: 0;
+      overflow: hidden;
+    }
+    .custom-popup .leaflet-popup-content {
+      margin: 0;
+    }
+    .popup-inner {
+      padding: 12px 16px;
+    }
+    .popup-inner .popup-title {
+      font-family: 'Noto Sans KR', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .popup-inner .popup-addr {
+      font-family: 'Noto Sans KR', sans-serif;
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+    .popup-header {
+      height: 4px;
+    }
+
+    /* Polyline distance label */
+    .dist-label {
+      background: white;
+      border: 1.5px solid var(--seafoam);
+      border-radius: 20px;
+      padding: 3px 10px;
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--sea);
+      white-space: nowrap;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">제주 <span>지점 거리</span> 지도</div>
+  <div class="subtitle">Jeju Distance Map</div>
+</header>
+
+<main>
+  <aside>
+    <div class="section-label">주요 지점</div>
+
+    <div class="loc-card" id="card-airport" onclick="flyTo(0)">
+      <div class="loc-dot airport"></div>
+      <div class="loc-info">
+        <div class="name">제주 국제공항</div>
+        <div class="addr">제주시 공항로 2</div>
+      </div>
+    </div>
+    <div class="loc-card" id="card-school" onclick="flyTo(1)">
+      <div class="loc-dot school"></div>
+      <div class="loc-info">
+        <div class="name">중앙여자고등학교</div>
+        <div class="addr">제주시 중앙로 94</div>
+      </div>
+    </div>
+    <div class="loc-card" id="card-univ" onclick="flyTo(2)">
+      <div class="loc-dot univ"></div>
+      <div class="loc-info">
+        <div class="name">제주대학교</div>
+        <div class="addr">제주시 제주대학로 102</div>
+      </div>
+    </div>
+
+    <div class="section-label" style="margin-top:8px;">직선 거리</div>
+    <div class="dist-section">
+
+      <div class="dist-row">
+        <div class="dist-pair">
+          <div class="from-to">
+            <div class="dot" style="background:var(--lava)"></div>
+            국제공항
+            <span class="arrow">→</span>
+            <div class="dot" style="background:var(--moss)"></div>
+            중앙여고
+          </div>
+        </div>
+        <div class="dist-value">
+          <div class="km" id="d-airport-school">—</div>
+          <div class="unit">km</div>
+        </div>
+      </div>
+
+      <div class="dist-row">
+        <div class="dist-pair">
+          <div class="from-to">
+            <div class="dot" style="background:var(--lava)"></div>
+            국제공항
+            <span class="arrow">→</span>
+            <div class="dot" style="background:var(--seafoam)"></div>
+            제주대학교
+          </div>
+        </div>
+        <div class="dist-value">
+          <div class="km" id="d-airport-univ">—</div>
+          <div class="unit">km</div>
+        </div>
+      </div>
+
+      <div class="dist-row">
+        <div class="dist-pair">
+          <div class="from-to">
+            <div class="dot" style="background:var(--moss)"></div>
+            중앙여고
+            <span class="arrow">→</span>
+            <div class="dot" style="background:var(--seafoam)"></div>
+            제주대학교
+          </div>
+        </div>
+        <div class="dist-value">
+          <div class="km" id="d-school-univ">—</div>
+          <div class="unit">km</div>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+  <div id="map"></div>
+</main>
+
+<script>
+  // ── 좌표 데이터 ──
+  const locations = [
+    {
+      id: 'airport',
+      name: '제주 국제공항',
+      addr: '제주시 공항로 2',
+      lat: 33.5113,
+      lng: 126.4930,
+      color: '#c0392b',
+      cardId: 'card-airport'
+    },
+    {
+      id: 'school',
+      name: '중앙여자고등학교',
+      addr: '제주시 중앙로 94',
+      lat: 33.5110,
+      lng: 126.5220,
+      color: '#4a7c59',
+      cardId: 'card-school'
+    },
+    {
+      id: 'univ',
+      name: '제주대학교',
+      addr: '제주시 제주대학로 102',
+      lat: 33.4567,
+      lng: 126.5614,
+      color: '#3e8fa3',
+      cardId: 'card-univ'
+    }
+  ];
+
+  // ── 거리 계산 (Haversine) ──
+  function haversine(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 +
+              Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
+              Math.sin(dLng/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+
+  // ── 지도 초기화 ──
+  const map = L.map('map', { zoomControl: true }).setView([33.490, 126.530], 13);
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(map);
+
+  // ── 커스텀 마커 아이콘 ──
+  function makeIcon(color, label) {
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">
+        <path d="M16 0C7.16 0 0 7.16 0 16c0 10.5 14 24 16 24s16-13.5 16-24C32 7.16 24.84 0 16 0z"
+              fill="${color}" stroke="white" stroke-width="2"/>
+        <circle cx="16" cy="16" r="7" fill="white" opacity="0.9"/>
+        <text x="16" y="20.5" text-anchor="middle" font-family="DM Mono, monospace"
+              font-size="9" font-weight="600" fill="${color}">${label}</text>
+      </svg>`;
+    return L.divIcon({
+      className: '',
+      html: svg,
+      iconSize: [32, 40],
+      iconAnchor: [16, 40],
+      popupAnchor: [0, -42]
+    });
+  }
+
+  const labels = ['A', 'B', 'C'];
+  const markers = [];
+
+  locations.forEach((loc, i) => {
+    const marker = L.marker([loc.lat, loc.lng], {
+      icon: makeIcon(loc.color, labels[i])
+    }).addTo(map);
+
+    const popupContent = `
+      <div class="popup-header" style="background:${loc.color}"></div>
+      <div class="popup-inner">
+        <div class="popup-title">${loc.name}</div>
+        <div class="popup-addr">${loc.addr}</div>
+      </div>`;
+
+    marker.bindPopup(popupContent, { className: 'custom-popup' });
+    marker.on('click', () => setActive(i));
+    markers.push(marker);
+  });
+
+  // ── 직선 및 거리 라벨 ──
+  const pairs = [
+    { from: 0, to: 1, elId: 'd-airport-school', color: '#7a5fa0' },
+    { from: 0, to: 2, elId: 'd-airport-univ',   color: '#a05f5f' },
+    { from: 1, to: 2, elId: 'd-school-univ',     color: '#5f8fa0' }
+  ];
+
+  pairs.forEach(p => {
+    const a = locations[p.from], b = locations[p.to];
+    const dist = haversine(a.lat, a.lng, b.lat, b.lng);
+    document.getElementById(p.elId).textContent = dist.toFixed(2);
+
+    // 직선 폴리라인
+    L.polyline([[a.lat, a.lng], [b.lat, b.lng]], {
+      color: p.color,
+      weight: 2,
+      opacity: 0.6,
+      dashArray: '6 5'
+    }).addTo(map);
+
+    // 중간점에 거리 라벨
+    const midLat = (a.lat + b.lat) / 2;
+    const midLng = (a.lng + b.lng) / 2;
+    L.marker([midLat, midLng], {
+      icon: L.divIcon({
+        className: 'dist-label',
+        html: `${dist.toFixed(2)} km`,
+        iconAnchor: [30, 10]
+      }),
+      interactive: false
+    }).addTo(map);
+  });
+
+  // ── 지도 범위를 세 마커에 맞춤 ──
+  const bounds = L.latLngBounds(locations.map(l => [l.lat, l.lng]));
+  map.fitBounds(bounds, { padding: [60, 60] });
+
+  // ── 카드 클릭 → 지도 이동 ──
+  function flyTo(i) {
+    const loc = locations[i];
+    map.flyTo([loc.lat, loc.lng], 15, { duration: 0.8 });
+    markers[i].openPopup();
+    setActive(i);
+  }
+
+  function setActive(i) {
+    locations.forEach((loc, idx) => {
+      const card = document.getElementById(loc.cardId);
+      card.classList.toggle('active', idx === i);
+    });
+  }
+
+  window.flyTo = flyTo;
+</script>
+</body>
+</html>
